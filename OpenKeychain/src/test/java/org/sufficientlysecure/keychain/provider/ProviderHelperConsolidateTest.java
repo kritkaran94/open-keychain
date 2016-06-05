@@ -30,6 +30,10 @@ import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowLog;
 import org.sufficientlysecure.keychain.WorkaroundBuildConfig;
 import org.sufficientlysecure.keychain.pgp.UncachedKeyRing;
+import org.sufficientlysecure.keychain.provider.KeychainContract.Certs;
+import org.sufficientlysecure.keychain.provider.KeychainContract.KeyRings;
+import org.sufficientlysecure.keychain.provider.KeychainContract.Keys;
+import org.sufficientlysecure.keychain.provider.KeychainContract.UserPackets;
 import org.sufficientlysecure.keychain.util.ProgressScaler;
 
 import java.util.ArrayList;
@@ -46,6 +50,13 @@ public class ProviderHelperConsolidateTest {
         ShadowLog.stream = System.out;
     }
 
+    @Before
+    public void setUp() {
+        // clear database
+        mProviderHelper.getContentResolver().delete(
+                KeyRings.buildUnifiedKeyRingsUri(), null, null);
+    }
+
     @Test
     public void testConsolidateBasicConfig() throws Exception {
         // insert secret, this should work
@@ -59,14 +70,14 @@ public class ProviderHelperConsolidateTest {
                 certsCursor;
 
         // ensure query results are sorted
-        String keysSortOrder = KeychainContract.KeyRingsColumns.MASTER_KEY_ID + " DESC";
+        String keysSortOrder = Keys.MASTER_KEY_ID + " DESC";
         String userPacketSortOrder = KeychainDatabase.Tables.USER_PACKETS + "." + keysSortOrder;
         String certsSortOrder = KeychainDatabase.Tables.CERTS + "." + keysSortOrder;
 
         // get data before consolidate
-        keyCursor = resolver.query(KeychainContract.Keys.buildKeysUri(masterKeyId), null, null, null, keysSortOrder);
-        userPacketCursor = resolver.query(KeychainContract.UserPackets.buildUserIdsUri(masterKeyId), null, null, null, userPacketSortOrder);
-        certsCursor = resolver.query(KeychainContract.Certs.buildCertsUri(masterKeyId), null, null, null, certsSortOrder);
+        keyCursor = resolver.query(Keys.buildKeysUri(masterKeyId), null, null, null, keysSortOrder);
+        userPacketCursor = resolver.query(UserPackets.buildUserIdsUri(masterKeyId), null, null, null, userPacketSortOrder);
+        certsCursor = resolver.query(Certs.buildCertsUri(masterKeyId), null, null, null, certsSortOrder);
         ArrayList<CursorRow> keyDataBeforeConsolidate = extractData(keyCursor);
         ArrayList<CursorRow> userDataBeforeConsolidate = extractData(userPacketCursor);
         ArrayList<CursorRow> certsDataBeforeConsolidate = extractData(certsCursor);
@@ -77,9 +88,9 @@ public class ProviderHelperConsolidateTest {
         mProviderHelper.consolidateDatabaseStep1(new ProgressScaler());
 
         // get data after consolidate
-        keyCursor = resolver.query(KeychainContract.Keys.buildKeysUri(masterKeyId), null, null, null , keysSortOrder);
-        userPacketCursor = resolver.query(KeychainContract.UserPackets.buildUserIdsUri(), null, null, null, userPacketSortOrder);
-        certsCursor = resolver.query(KeychainContract.Certs.buildCertsUri(masterKeyId), null, null, null, certsSortOrder);
+        keyCursor = resolver.query(Keys.buildKeysUri(masterKeyId), null, null, null , keysSortOrder);
+        userPacketCursor = resolver.query(UserPackets.buildUserIdsUri(), null, null, null, userPacketSortOrder);
+        certsCursor = resolver.query(Certs.buildCertsUri(masterKeyId), null, null, null, certsSortOrder);
         ArrayList<CursorRow> keyDataAfterConsolidate = extractData(keyCursor);
         ArrayList<CursorRow> userDataAfterConsolidate = extractData(userPacketCursor);
         ArrayList<CursorRow> certsDataAfterConsolidate = extractData(certsCursor);
@@ -134,21 +145,22 @@ public class ProviderHelperConsolidateTest {
             for (int index = 0; index < numCols; index++) {
                 int colType = cursor.getType(index);
                 switch(colType) {
+                    case(Cursor.FIELD_TYPE_NULL): {
+                        row.booleans.add(cursor.isNull(index));
+                        break;
+                    }
                     case(Cursor.FIELD_TYPE_BLOB): {
                         row.blobs.add(cursor.getBlob(index));
                         break;
                     }
-
                     case(Cursor.FIELD_TYPE_FLOAT): {
                         row.floats.add(cursor.getFloat(index));
                         break;
                     }
-
                     case(Cursor.FIELD_TYPE_INTEGER): {
                         row.ints.add(cursor.getInt(index));
                         break;
                     }
-
                     case(Cursor.FIELD_TYPE_STRING): {
                         row.strings.add(cursor.getString(index));
                         break;
@@ -176,18 +188,21 @@ public class ProviderHelperConsolidateTest {
         public final ArrayList<Float> floats;
         public final ArrayList<Integer> ints;
         public final ArrayList<String> strings;
+        public final ArrayList<Boolean> booleans;
 
         public CursorRow() {
             blobs = new ArrayList<>();
             floats = new ArrayList<>();
             ints = new ArrayList<>();
             strings = new ArrayList<>();
+            booleans = new ArrayList<>();
         }
 
         public boolean equals(CursorRow other) {
             if (other == null) {
                 return false;
             } else {
+
                 // check blobs
                 for (int i = 0; i < blobs.size(); i++) {
                     byte[] blob = blobs.get(i);
@@ -201,7 +216,8 @@ public class ProviderHelperConsolidateTest {
                 // check rest
                 return (floats.equals(other.floats)
                         && ints.equals(other.ints)
-                        && strings.equals(other.strings));
+                        && strings.equals(other.strings)
+                        && booleans.equals(other.booleans));
             }
         }
     }
