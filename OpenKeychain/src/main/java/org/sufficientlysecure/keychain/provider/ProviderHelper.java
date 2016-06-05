@@ -1004,6 +1004,10 @@ public class ProviderHelper {
 
     }
 
+    public SaveKeyringResult saveSecretKeyRing(UncachedKeyRing secretRing) {
+        return saveSecretKeyRing(secretRing, new ProgressScaler());
+    }
+
     public SaveKeyringResult saveSecretKeyRing(UncachedKeyRing secretRing, Progressable progress) {
 
         try {
