@@ -344,6 +344,7 @@ public class ProviderHelper {
     @SuppressWarnings("unchecked")
     private int saveCanonicalizedPublicKeyRing(CanonicalizedPublicKeyRing keyRing,
                                                Progressable progress, boolean selfCertsAreTrusted) {
+        selfCertsAreTrusted = selfCertsAreTrusted || mConsolidatingOwnPublic;
 
         // start with ok result
         int result = SaveKeyringResult.SAVED_PUBLIC;
@@ -1352,6 +1353,7 @@ public class ProviderHelper {
     }
 
     private static boolean mConsolidateCritical = false;
+    private boolean mConsolidatingOwnPublic = false;
 
     @NonNull
     private ConsolidateResult consolidateDatabaseStep2(
@@ -1417,6 +1419,7 @@ public class ProviderHelper {
                 indent += 1;
 
                 // 3. Re-Import own public keyrings from cache
+                mConsolidatingOwnPublic = true;
                 if (numPublic > 0) {
                     ImportKeyResult result = new ImportOperation(mContext, this,
                             new ProgressFixedScaler(progress, 10, 20, 100, R.string.progress_con_reimport))
@@ -1431,6 +1434,7 @@ public class ProviderHelper {
                 log.add(LogType.MSG_CON_ERROR_OWN_PUBLIC, indent);
                 return new ConsolidateResult(ConsolidateResult.RESULT_ERROR, log);
             } finally {
+                mConsolidatingOwnPublic = false;
                 indent -= 1;
             }
 
@@ -1567,20 +1571,7 @@ public class ProviderHelper {
                 return new WriteKeyRingsResult(OperationResult.RESULT_ERROR, log);
             }
 
-            // 2. verify self certs
-            log.add(LogType.MSG_WS_UPDATING_SELF_CERTS, indent);
-            indent += 1;
-            uri = Certs.buildCertsUri(masterKeyId);
-            values = new ContentValues();
-            values.put(Certs.VERIFIED, Certs.VERIFIED_SECRET);
-            String where = Certs.KEY_ID_CERTIFIER + "=?" + " AND " + Certs.TYPE + "!=?";
-            String[] selectionArgs = new String[] {String.valueOf(masterKeyId),
-                    String.valueOf(WrappedSignature.CERTIFICATION_REVOCATION)};
-            contentResolver.update(uri, values, where, selectionArgs);
-            log.add(LogType.MSG_WS_UPDATED_SELF_CERTS, indent);
-            indent -= 1;
-
-            // 3. insert subkey info
+            // 2. insert subkey info
             uri = Keys.buildKeysUri(masterKeyId);
 
             // first, mark all keys as not available
