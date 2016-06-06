@@ -1121,11 +1121,9 @@ public class ProviderHelper {
 
     @NonNull
     public ConsolidateResult consolidateDatabaseStep1(Progressable progress) {
-
         OperationLog log = new OperationLog();
         int indent = 0;
 
-        // 1a. fetch own public keyrings into a cache file
         log.add(LogType.MSG_CON, indent);
         indent += 1;
 
@@ -1139,60 +1137,27 @@ public class ProviderHelper {
         // The consolidate operation can never be cancelled!
         progress.setPreventCancel();
 
+        // 1a. fetch own public keyrings into a cache file
         try {
-
             log.add(LogType.MSG_CON_SAVE_OWN_PUBLIC, indent);
             indent += 1;
-            final Cursor cursor = mContentResolver.query(KeyRings.buildUnifiedKeyRingsUri(),
+
+            Cursor cursor = mContentResolver.query(KeyRings.buildUnifiedKeyRingsUri(),
                     new String[]{KeyRings.PUBKEY_DATA, KeyRings.HAS_ANY_SECRET},
                     KeyRings.HAS_ANY_SECRET + "!=0", null, null);
-
-            if (cursor == null) {
-                log.add(LogType.MSG_CON_ERROR_DB, indent);
-                return new ConsolidateResult(ConsolidateResult.RESULT_ERROR, log);
-            }
-
-            // No keys existing might be a legitimate option, we write an empty file in that case
-            cursor.moveToFirst();
-            ParcelableFileCache<ParcelableKeyRing> cache =
-                    new ParcelableFileCache<>(mContext, "consolidate_own_public.pcl");
-            cache.writeCache(cursor.getCount(), new Iterator<ParcelableKeyRing>() {
-                ParcelableKeyRing ring;
-
-                @Override
-                public boolean hasNext() {
-                    if (ring != null) {
-                        return true;
-                    }
-                    if (cursor.isAfterLast()) {
-                        return false;
-                    }
-                    ring = new ParcelableKeyRing(cursor.getBlob(0));
-                    cursor.moveToNext();
-                    return true;
-                }
-
-                @Override
-                public ParcelableKeyRing next() {
-                    try {
-                        return ring;
-                    } finally {
-                        ring = null;
-                    }
-                }
-
-                @Override
-                public void remove() {
-                    throw new UnsupportedOperationException();
-                }
-
-            });
+            cachePublicKeyRings(cursor, 0, "consolidate_own_public.pcl");
+            //noinspection ConstantConditions
             cursor.close();
+
+        } catch (NullPointerException e) {
+            log.add(LogType.MSG_CON_ERROR_DB, indent);
+            return new ConsolidateResult(ConsolidateResult.RESULT_ERROR, log);
 
         } catch (IOException e) {
             Log.e(Constants.TAG, "error saving own public", e);
             log.add(LogType.MSG_CON_ERROR_IO_OWN_PUBLIC, indent);
             return new ConsolidateResult(ConsolidateResult.RESULT_ERROR, log);
+
         } finally {
             indent -= 1;
         }
@@ -1201,7 +1166,6 @@ public class ProviderHelper {
 
         // 1b. fetch all encrypted secret keyRing blocks and subKey type into a cache file
         try {
-
             log.add(LogType.MSG_CON_SAVE_SECRET, indent);
             indent += 1;
 
@@ -1209,55 +1173,19 @@ public class ProviderHelper {
                     KeyRingData.buildSecretKeyRingUri(),
                     new String[]{KeyRingData.KEY_RING_DATA, KeyRingData.MASTER_KEY_ID},
                     null, null, null);
-
-            if (cursor == null) {
-                log.add(LogType.MSG_CON_ERROR_DB, indent);
-                return new ConsolidateResult(ConsolidateResult.RESULT_ERROR, log);
-            }
-
-            // No keys existing might be a legitimate option, we write an empty file in that case
-            cursor.moveToFirst();
-            ParcelableFileCache<ParcelableEncryptedKeyRing> cache =
-                    new ParcelableFileCache<>(mContext, "consolidate_secret.pcl");
-            cache.writeCache(cursor.getCount(), new Iterator<ParcelableEncryptedKeyRing>() {
-                ParcelableEncryptedKeyRing ring;
-
-                @Override
-                public boolean hasNext() {
-                    if (ring != null) {
-                        return true;
-                    }
-                    if (cursor.isAfterLast()) {
-                        return false;
-                    }
-                    long masterKeyId = cursor.getLong(1);
-                    ArrayList<Pair<Long, Integer>> subKeyIdsAndType = getSubKeyIdsAndType(masterKeyId);
-                    ring = new ParcelableEncryptedKeyRing(cursor.getBlob(0), masterKeyId, subKeyIdsAndType);
-                    cursor.moveToNext();
-                    return true;
-                }
-
-                @Override
-                public ParcelableEncryptedKeyRing next() {
-                    try {
-                        return ring;
-                    } finally {
-                        ring = null;
-                    }
-                }
-
-                @Override
-                public void remove() {
-                    throw new UnsupportedOperationException();
-                }
-
-            });
+            cacheSecretKeyRings(cursor, 0, "consolidate_secret.pcl");
+            //noinspection ConstantConditions
             cursor.close();
+
+        } catch (NullPointerException e) {
+            log.add(LogType.MSG_CON_ERROR_DB, indent);
+            return new ConsolidateResult(ConsolidateResult.RESULT_ERROR, log);
 
         } catch (IOException e) {
             Log.e(Constants.TAG, "error saving secret", e);
             log.add(LogType.MSG_CON_ERROR_IO_SECRET, indent);
             return new ConsolidateResult(ConsolidateResult.RESULT_ERROR, log);
+
         } finally {
             indent -= 1;
         }
@@ -1266,60 +1194,27 @@ public class ProviderHelper {
 
         // 1c. fetch all public keyrings into a cache file
         try {
-
             log.add(LogType.MSG_CON_SAVE_FOREIGN_PUBLIC, indent);
             indent += 1;
 
-            final Cursor cursor = mContentResolver.query(
+            // Importing own public rings and all public rings ==
+            // importing own public rings and foreign public rings
+            Cursor cursor = mContentResolver.query(
                     KeyRingData.buildPublicKeyRingUri(),
                     new String[]{KeyRingData.KEY_RING_DATA}, null, null, null);
-
-            if (cursor == null) {
-                log.add(LogType.MSG_CON_ERROR_DB, indent);
-                return new ConsolidateResult(ConsolidateResult.RESULT_ERROR, log);
-            }
-
-            // No keys existing might be a legitimate option, we write an empty file in that case
-            cursor.moveToFirst();
-            ParcelableFileCache<ParcelableKeyRing> cache =
-                    new ParcelableFileCache<>(mContext, "consolidate_foreign_public.pcl");
-            cache.writeCache(cursor.getCount(), new Iterator<ParcelableKeyRing>() {
-                ParcelableKeyRing ring;
-
-                @Override
-                public boolean hasNext() {
-                    if (ring != null) {
-                        return true;
-                    }
-                    if (cursor.isAfterLast()) {
-                        return false;
-                    }
-                    ring = new ParcelableKeyRing(cursor.getBlob(0));
-                    cursor.moveToNext();
-                    return true;
-                }
-
-                @Override
-                public ParcelableKeyRing next() {
-                    try {
-                        return ring;
-                    } finally {
-                        ring = null;
-                    }
-                }
-
-                @Override
-                public void remove() {
-                    throw new UnsupportedOperationException();
-                }
-
-            });
+            cachePublicKeyRings(cursor, 0, "consolidate_foreign_public.pcl");
+            //noinspection ConstantConditions
             cursor.close();
+
+        } catch (NullPointerException e) {
+            log.add(LogType.MSG_CON_ERROR_DB, indent);
+            return new ConsolidateResult(ConsolidateResult.RESULT_ERROR, log);
 
         } catch (IOException e) {
             Log.e(Constants.TAG, "error saving public", e);
             log.add(LogType.MSG_CON_ERROR_IO_FOREIGN_PUBLIC, indent);
             return new ConsolidateResult(ConsolidateResult.RESULT_ERROR, log);
+
         } finally {
             indent -= 1;
         }
@@ -1328,6 +1223,90 @@ public class ProviderHelper {
         Preferences.getPreferences(mContext).setCachedConsolidate(true);
 
         return consolidateDatabaseStep2(log, indent, progress, false);
+    }
+
+    private void cachePublicKeyRings(final Cursor cursor, final int keyRingPosition, String fileName)
+            throws IOException, NullPointerException {
+        // No keys existing might be a legitimate option, we write an empty file in that case
+        cursor.moveToFirst();
+        ParcelableFileCache<ParcelableKeyRing> cache = new ParcelableFileCache<>(mContext, fileName);
+
+        cache.writeCache(cursor.getCount(), new Iterator<ParcelableKeyRing>() {
+            ParcelableKeyRing ring;
+
+            @Override
+            public boolean hasNext() {
+                if (ring != null) {
+                    return true;
+                }
+                if (cursor.isAfterLast()) {
+                    return false;
+                }
+                ring = new ParcelableKeyRing(cursor.getBlob(keyRingPosition));
+                cursor.moveToNext();
+                return true;
+            }
+
+            @Override
+            public ParcelableKeyRing next() {
+                try {
+                    return ring;
+                } finally {
+                    ring = null;
+                }
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
+
+        });
+    }
+
+    /**
+     * Caches secret keyrings with subkey related data obtainable only by
+     * reading the secret keyrings
+     */
+    private void cacheSecretKeyRings(final Cursor cursor, final int keyRingPosition, String fileName)
+            throws IOException, NullPointerException {
+        // No keys existing might be a legitimate option, we write an empty file in that case
+        cursor.moveToFirst();
+        ParcelableFileCache<ParcelableEncryptedKeyRing> cache = new ParcelableFileCache<>(mContext, fileName);
+
+        cache.writeCache(cursor.getCount(), new Iterator<ParcelableEncryptedKeyRing>() {
+            ParcelableEncryptedKeyRing ring;
+
+            @Override
+            public boolean hasNext() {
+                if (ring != null) {
+                    return true;
+                }
+                if (cursor.isAfterLast()) {
+                    return false;
+                }
+                long masterKeyId = cursor.getLong(1);
+                ArrayList<Pair<Long, Integer>> subKeyIdsAndType = getSubKeyIdsAndType(masterKeyId);
+                ring = new ParcelableEncryptedKeyRing(cursor.getBlob(keyRingPosition), masterKeyId, subKeyIdsAndType);
+                cursor.moveToNext();
+                return true;
+            }
+
+            @Override
+            public ParcelableEncryptedKeyRing next() {
+                try {
+                    return ring;
+                } finally {
+                    ring = null;
+                }
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
+
+        });
     }
 
     private ArrayList<Pair<Long, Integer>> getSubKeyIdsAndType(long masterKeyId) {
