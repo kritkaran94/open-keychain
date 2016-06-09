@@ -198,27 +198,32 @@ public class ProviderHelperConsolidateTest {
             booleans = new ArrayList<>();
         }
 
-        public boolean equals(CursorRow other) {
-            if (other == null) {
-                return false;
-            } else {
-
-                // check blobs
-                for (int i = 0; i < blobs.size(); i++) {
-                    byte[] blob = blobs.get(i);
-                    byte[] otherBlob = other.blobs.get(i);
-
-                    if(otherBlob == null || !Arrays.equals(blob, otherBlob)) {
-                        return false;
-                    }
-                }
-
-                // check rest
-                return (floats.equals(other.floats)
-                        && ints.equals(other.ints)
-                        && strings.equals(other.strings)
-                        && booleans.equals(other.booleans));
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
             }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            CursorRow other = (CursorRow) o;
+
+            // check blobs
+            for (int i = 0; i < blobs.size(); i++) {
+                byte[] blob = blobs.get(i);
+                byte[] otherBlob = other.blobs.get(i);
+
+                if(otherBlob == null || !Arrays.equals(blob, otherBlob)) {
+                    return false;
+                }
+            }
+
+            // check rest
+            return (floats.equals(other.floats)
+                    && ints.equals(other.ints)
+                    && strings.equals(other.strings)
+                    && booleans.equals(other.booleans));
         }
     }
 
