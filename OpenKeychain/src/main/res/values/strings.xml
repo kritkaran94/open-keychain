@@ -380,6 +380,7 @@
     <string name="error_integrity_check_failed">"integrity check failed! Data has been modified!"</string>
     <string name="error_wrong_passphrase">"wrong password"</string>
     <string name="error_could_not_extract_private_key">"could not extract private key"</string>
+    <string name="error_could_not_process_key_data">"could not process key data"</string>
     <string name="error_wrong_security_token">"this security token doesn't contain required key"</string>
 
     <!-- errors without preceeding Error: -->
