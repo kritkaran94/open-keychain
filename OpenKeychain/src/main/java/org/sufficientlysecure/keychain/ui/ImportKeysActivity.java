@@ -449,12 +449,13 @@ public class ImportKeysActivity extends BaseActivity
     }
 
     private void startPassphraseActivity() {
-        Intent intent = new Intent(this, PassphraseDialogActivity.class);
         SubKeyInfo keyInfo = mSubKeysForRepeatAskPassphrase.next();
 
         ParcelableKeyRing pKeyRing = keyInfo.mKeyRing;
         long subKeyId = keyInfo.mSubKeyId;
         long masterKeyId = keyInfo.mMasterKeyId;
+
+        Intent intent = new Intent(this, PassphraseDialogActivity.class);
 
         // try using last entered passphrase if appropriate
         if (!mPassphrases.isEmpty()) {
