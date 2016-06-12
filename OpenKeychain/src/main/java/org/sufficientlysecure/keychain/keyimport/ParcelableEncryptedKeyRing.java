@@ -25,7 +25,7 @@ import java.util.ArrayList;
 
 /**
  * Parcelable representation of an encrypted keyring block as raw data,
- * with related fields not obtainable without decrypting the block
+ * with associated fields for convenience.
  */
 public class ParcelableEncryptedKeyRing implements Parcelable{
 
