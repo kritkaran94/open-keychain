@@ -183,6 +183,9 @@ public class ProviderHelperConsolidateTest {
         }
     }
 
+    /**
+     * Beware of simple hash code implementation
+     */
     private static class CursorRow {
         public final ArrayList<byte[]> blobs;
         public final ArrayList<Float> floats;
@@ -224,6 +227,11 @@ public class ProviderHelperConsolidateTest {
                     && ints.equals(other.ints)
                     && strings.equals(other.strings)
                     && booleans.equals(other.booleans));
+        }
+
+        @Override
+        public int hashCode() {
+            return 17;
         }
     }
 
