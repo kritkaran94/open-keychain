@@ -57,13 +57,12 @@ public class KeyringPassphrases implements Parcelable {
     }
 
     private KeyringPassphrases(Parcel source) {
-        ClassLoader loader = KeychainApplication.class.getClassLoader();
         mMasterKeyId = source.readLong();
         mSubkeyPassphrases = new ArrayList<>();
-        int arrayCount =source.readInt();
+        int arrayCount = source.readInt();
         for (int i = 0; i < arrayCount; i++) {
             long id = source.readLong();
-            Passphrase passphrase = source.readParcelable(loader);
+            Passphrase passphrase = source.readParcelable(Passphrase.class.getClassLoader());
             mSubkeyPassphrases.add(new Pair<>(id, passphrase));
         }
     }
