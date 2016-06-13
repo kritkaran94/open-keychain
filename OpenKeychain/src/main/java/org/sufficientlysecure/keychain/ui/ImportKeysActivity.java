@@ -406,11 +406,9 @@ public class ImportKeysActivity extends BaseActivity
                     Iterator<UncachedPublicKey> keyIterator = uKeyRing.getPublicKeys();
                     while(keyIterator.hasNext()) {
                         UncachedPublicKey publicKey = keyIterator.next();
-                        if(!publicKey.isMaybeExpired() && !publicKey.isMaybeRevoked()) {
-                            subKeyInfos.add(new SubKeyInfo(uKeyRing.getMasterKeyId(),
-                                                            publicKey.getKeyId(),
-                                                            pKeyRing));
-                        }
+                        subKeyInfos.add(new SubKeyInfo(uKeyRing.getMasterKeyId(),
+                                                        publicKey.getKeyId(),
+                                                        pKeyRing));
                     }
                 }
             } catch (IOException | PgpGeneralException e) {
