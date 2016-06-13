@@ -1445,7 +1445,7 @@ public class ProviderHelper {
                 log.add(LogType.MSG_CON_REIMPORT_FOREIGN_PUBLIC, indent, numPublics);
                 indent += 1;
 
-                // 5. Re-Import all public keyrings from cache
+                // 5. Re-Import foreign public keyrings from cache
                 if (numPublics > 0) {
 
                     ImportKeyResult result = new ImportOperation(mContext, this,
