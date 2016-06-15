@@ -1235,7 +1235,7 @@ public class PgpKeyOperationTest {
     }
 
     @Test
-    public void testRemovePassphrases() {
+    public void testRemoveKeyRingPassphrases() {
         // change passphrase to non-empty passphrase
         Passphrase nonEmptyPassphrase = TestingUtils.genPassphrase(true);
         parcel.setNewUnlock(new ChangeUnlockParcel(nonEmptyPassphrase));
@@ -1255,7 +1255,7 @@ public class PgpKeyOperationTest {
         }
 
         // remove all passphrases except master key's
-        PgpEditKeyResult result = op.removeKeyRingPassphrase(cskr, keyringPassphrases);
+        PgpEditKeyResult result = op.removeKeyRingPassphrases(cskr, keyringPassphrases);
         Assert.assertTrue("removing passphrases must succeed", result.success());
 
         // test all keys (expect unlock to fail only for masterkey)
@@ -1281,7 +1281,7 @@ public class PgpKeyOperationTest {
         keyringPassphrases.mSubkeyPassphrases.put(masterKeyId, nonEmptyPassphrase);
 
         // remove only master passphrase
-        result = op.removeKeyRingPassphrase(cskr, keyringPassphrases);
+        result = op.removeKeyRingPassphrases(cskr, keyringPassphrases);
         Assert.assertTrue("removing passphrases must succeed", result.success());
 
         // test all keys (unlock should succeed for all)

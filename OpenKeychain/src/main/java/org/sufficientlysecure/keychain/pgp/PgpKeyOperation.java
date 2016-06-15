@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.bouncycastle.bcpg.PublicKeyAlgorithmTags;
 import org.bouncycastle.bcpg.S2K;
+import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags;
 import org.bouncycastle.bcpg.sig.Features;
 import org.bouncycastle.bcpg.sig.KeyFlags;
 import org.bouncycastle.bcpg.sig.RevocationReasonTags;
@@ -1287,7 +1288,7 @@ public class PgpKeyOperation {
         return false;
     }
 
-    public PgpEditKeyResult removeKeyRingPassphrase(CanonicalizedSecretKeyRing wsKR,
+    public PgpEditKeyResult removeKeyRingPassphrases(CanonicalizedSecretKeyRing wsKR,
                                                     KeyringPassphrases keyringPassphrases) {
         OperationLog log = new OperationLog();
         int indent = 0;
@@ -1352,9 +1353,9 @@ public class PgpKeyOperation {
             PBESecretKeyDecryptor keyDecryptor = new JcePBESecretKeyDecryptorBuilder().setProvider(
                     Constants.BOUNCY_CASTLE_PROVIDER_NAME).build(passphrase.getCharArray());
             PBESecretKeyEncryptor keyEncryptorNew = new JcePBESecretKeyEncryptorBuilder(
-                    PgpSecurityConstants.SECRET_KEY_ENCRYPTOR_SYMMETRIC_ALGO, encryptorHashCalc,
+                    SymmetricKeyAlgorithmTags.NULL, encryptorHashCalc,
                     PgpSecurityConstants.SECRET_KEY_ENCRYPTOR_S2K_COUNT)
-                    .setProvider(Constants.BOUNCY_CASTLE_PROVIDER_NAME).build("".toCharArray());
+                    .setProvider(Constants.BOUNCY_CASTLE_PROVIDER_NAME).build(null);
 
             try {
                 sKey = PGPSecretKey.copyWithNewPassword(sKey, keyDecryptor, keyEncryptorNew);
