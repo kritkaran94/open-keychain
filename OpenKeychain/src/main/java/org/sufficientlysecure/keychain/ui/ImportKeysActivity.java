@@ -24,7 +24,6 @@ import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
-import android.util.Pair;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
@@ -47,8 +46,12 @@ import org.sufficientlysecure.keychain.ui.base.BaseActivity;
 import org.sufficientlysecure.keychain.ui.base.CryptoOperationHelper;
 import org.sufficientlysecure.keychain.ui.util.KeyFormattingUtils;
 import org.sufficientlysecure.keychain.ui.util.Notify;
-import org.sufficientlysecure.keychain.util.*;
+import org.sufficientlysecure.keychain.util.KeyringPassphrases;
+import org.sufficientlysecure.keychain.util.Log;
+import org.sufficientlysecure.keychain.util.ParcelableFileCache;
 import org.sufficientlysecure.keychain.util.ParcelableFileCache.IteratorWithSize;
+import org.sufficientlysecure.keychain.util.Passphrase;
+import org.sufficientlysecure.keychain.util.Preferences;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -93,9 +96,8 @@ public class ImportKeysActivity extends BaseActivity
     private CryptoOperationHelper<ImportKeyringParcel, ImportKeyResult> mOperationHelper;
 
     private boolean mFreshIntent;
-    // ParcelableKeyRing & subkey id for multi-key import
     private Iterator<SubKeyInfo> mSubKeysForRepeatAskPassphrase;
-    private ArrayList<KeyringPassphrases> mPassphrases;
+    private ArrayList<KeyringPassphrases> mPassphrasesList;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -103,7 +105,7 @@ public class ImportKeysActivity extends BaseActivity
 
         // we're started with a new Intent that needs to be handled by onResumeFragments
         mFreshIntent = true;
-        mPassphrases = new ArrayList<>();
+        mPassphrasesList = new ArrayList<>();
 
         setFullScreenDialogClose(Activity.RESULT_CANCELED, true);
         findViewById(R.id.import_import).setOnClickListener(new OnClickListener() {
@@ -362,7 +364,7 @@ public class ImportKeysActivity extends BaseActivity
         if (ls instanceof ImportKeysListFragment.BytesLoaderState) {
             Log.d(Constants.TAG, "importKeys started");
 
-            // get passphrase for each secret subkey and import after
+            // get passphrase for each secret subkey
             ArrayList<SubKeyInfo> secretSubKeyInfos =
                     getSecretSubKeyInfo(keyListFragment.getSelectedData());
             mSubKeysForRepeatAskPassphrase = secretSubKeyInfos.iterator();
@@ -390,6 +392,7 @@ public class ImportKeysActivity extends BaseActivity
 
             mKeyList = keys;
             mKeyserver = sls.mCloudPrefs.keyserver;
+            mPassphrasesList = null;
             mOperationHelper.cryptoOperation();
 
         }
@@ -448,27 +451,26 @@ public class ImportKeysActivity extends BaseActivity
 
     private void startPassphraseActivity() {
         SubKeyInfo keyInfo = mSubKeysForRepeatAskPassphrase.next();
-
-        ParcelableKeyRing pKeyRing = keyInfo.mKeyRing;
+        ParcelableKeyRing parcelableKeyRing = keyInfo.mKeyRing;
         long subKeyId = keyInfo.mSubKeyId;
         long masterKeyId = keyInfo.mMasterKeyId;
 
         Intent intent = new Intent(this, PassphraseDialogActivity.class);
 
         // try using last entered passphrase if appropriate
-        if (!mPassphrases.isEmpty()) {
-            KeyringPassphrases prevKeyring = mPassphrases.get(mPassphrases.size() - 1);
-            Passphrase passphrase = prevKeyring.getLastPassphrase();
+        if (!mPassphrasesList.isEmpty()) {
+            KeyringPassphrases prevKeyring = mPassphrasesList.get(mPassphrasesList.size() - 1);
+            Passphrase passphrase = prevKeyring.getSinglePassphrase();
 
             boolean sameMasterKey = masterKeyId == prevKeyring.mMasterKeyId;
-            boolean prevSubKeysHaveSamePassphrase = prevKeyring.subKeysHaveSinglePassphrase();
+            boolean prevSubKeysHaveSamePassphrase = prevKeyring.subKeysHaveSamePassphrase();
             if(sameMasterKey && prevSubKeysHaveSamePassphrase) {
                 intent.putExtra(PassphraseDialogActivity.EXTRA_PASSPHRASE_TO_TRY, passphrase);
             }
         }
 
         RequiredInputParcel requiredInput =
-                RequiredInputParcel.createRequiredDecryptPassphrase(masterKeyId, subKeyId, pKeyRing);
+                RequiredInputParcel.createRequiredDecryptPassphrase(masterKeyId, subKeyId, parcelableKeyRing);
         requiredInput.mSkipCaching = true;
         intent.putExtra(PassphraseDialogActivity.EXTRA_REQUIRED_INPUT, requiredInput);
         startActivityForResult(intent, REQUEST_REPEAT_PASSPHRASE);
@@ -493,16 +495,16 @@ public class ImportKeysActivity extends BaseActivity
                 Passphrase passphrase = cryptoParcel.getPassphrase();
 
                 // save passphrase
-                boolean isNewKeyRing = (mPassphrases.isEmpty() ||
-                        mPassphrases.get(mPassphrases.size() - 1).mMasterKeyId != masterKeyId);
+                boolean isNewKeyRing = (mPassphrasesList.isEmpty() ||
+                        mPassphrasesList.get(mPassphrasesList.size() - 1).mMasterKeyId != masterKeyId);
 
                 if (isNewKeyRing) {
                     KeyringPassphrases newKeyring = new KeyringPassphrases(masterKeyId);
-                    newKeyring.mSubkeyPassphrases.add(new Pair<>(subKeyId, passphrase));
-                    mPassphrases.add(newKeyring);
+                    newKeyring.mSubkeyPassphrases.put(subKeyId, passphrase);
+                    mPassphrasesList.add(newKeyring);
                 } else {
-                    KeyringPassphrases prevKeyring = mPassphrases.get(mPassphrases.size() - 1);
-                    prevKeyring.mSubkeyPassphrases.add(new Pair<>(subKeyId, passphrase));
+                    KeyringPassphrases prevKeyring = mPassphrasesList.get(mPassphrasesList.size() - 1);
+                    prevKeyring.mSubkeyPassphrases.put(subKeyId, passphrase);
                 }
 
                 // check next subkey
@@ -551,7 +553,7 @@ public class ImportKeysActivity extends BaseActivity
 
     @Override
     public ImportKeyringParcel createOperationInput() {
-        return new ImportKeyringParcel(mKeyList, mKeyserver);
+        return new ImportKeyringParcel(mKeyList, mKeyserver, mPassphrasesList);
     }
 
     @Override

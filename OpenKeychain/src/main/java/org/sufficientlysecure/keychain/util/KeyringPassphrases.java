@@ -2,36 +2,38 @@ package org.sufficientlysecure.keychain.util;
 
 import android.os.Parcel;
 import android.os.Parcelable;
-import android.util.Pair;
-import org.sufficientlysecure.keychain.KeychainApplication;
 
-import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Set;
 
 public class KeyringPassphrases implements Parcelable {
 
     public final long mMasterKeyId;
-    public final ArrayList<Pair<Long, Passphrase>> mSubkeyPassphrases;
+    public final HashMap<Long, Passphrase> mSubkeyPassphrases;
 
     public KeyringPassphrases(long masterKeyId) {
         mMasterKeyId = masterKeyId;
-        mSubkeyPassphrases = new ArrayList<>();
+        mSubkeyPassphrases = new HashMap<>();
     }
 
-    public Passphrase getLastPassphrase() {
+    /**
+     * Returns a passphrase, with no guarantees on consistency
+     */
+    public Passphrase getSinglePassphrase() {
         if (mSubkeyPassphrases.size() > 0) {
-            return mSubkeyPassphrases.get(mSubkeyPassphrases.size() - 1).second;
+            return mSubkeyPassphrases.values().iterator().next();
         } else {
             return null;
         }
     }
 
-    public boolean subKeysHaveSinglePassphrase() {
+    public boolean subKeysHaveSamePassphrase() {
         if (mSubkeyPassphrases.size() < 2) {
             return true;
         } else {
             Passphrase previous = null;
-            for(Pair<Long, Passphrase> passPair : mSubkeyPassphrases) {
-                Passphrase current = passPair.second;
+            for(Passphrase current : mSubkeyPassphrases.values()) {
                 if(previous != null && !current.equals(previous)) {
                     return false;
                 }
@@ -39,6 +41,25 @@ public class KeyringPassphrases implements Parcelable {
             }
             return true;
         }
+    }
+
+    private static ParcelableHashMap<ParcelableLong, Passphrase> toParcelableHashMap(HashMap<Long, Passphrase> hashMap) {
+        HashMap<ParcelableLong, Passphrase> forParceling = new HashMap<>();
+        Set<Long> keys = hashMap.keySet();
+        for (Long key : keys) {
+            forParceling.put(new ParcelableLong(key), hashMap.get(key));
+        }
+        return new ParcelableHashMap<>(forParceling);
+    }
+
+    private static HashMap<Long, Passphrase> fromParcelableHashMap(ParcelableHashMap<ParcelableLong, Passphrase> parcelableHashMap) {
+        HashMap<ParcelableLong, Passphrase> toProcess = parcelableHashMap.getMap();
+        HashMap<Long, Passphrase> result = new HashMap<>();
+        Set<ParcelableLong> keys = toProcess.keySet();
+        for (ParcelableLong key : keys) {
+            result.put(key.mValue, toProcess.get(key));
+        }
+        return result;
     }
 
     @Override
@@ -49,22 +70,14 @@ public class KeyringPassphrases implements Parcelable {
     @Override
     public void writeToParcel(Parcel parcel, int flags) {
         parcel.writeLong(mMasterKeyId);
-        parcel.writeInt(mSubkeyPassphrases.size());
-        for(Pair<Long, Passphrase> passPair : mSubkeyPassphrases) {
-            parcel.writeLong(passPair.first);
-            parcel.writeParcelable(passPair.second, 0);
-        }
+        parcel.writeParcelable(toParcelableHashMap(mSubkeyPassphrases), flags);
     }
 
     private KeyringPassphrases(Parcel source) {
         mMasterKeyId = source.readLong();
-        mSubkeyPassphrases = new ArrayList<>();
-        int arrayCount = source.readInt();
-        for (int i = 0; i < arrayCount; i++) {
-            long id = source.readLong();
-            Passphrase passphrase = source.readParcelable(Passphrase.class.getClassLoader());
-            mSubkeyPassphrases.add(new Pair<>(id, passphrase));
-        }
+        ParcelableHashMap<ParcelableLong, Passphrase> parcelableHashMap =
+                source.readParcelable(ParcelableHashMap.class.getClassLoader());
+        mSubkeyPassphrases = fromParcelableHashMap(parcelableHashMap);
     }
 
     public static final Creator<KeyringPassphrases> CREATOR =
@@ -79,5 +92,16 @@ public class KeyringPassphrases implements Parcelable {
                     return new KeyringPassphrases[i];
                 }
             };
+
+    public static KeyringPassphrases getKeyringPassphrases(Collection<KeyringPassphrases> collection,
+                                                           long masterKeyId) {
+        for (KeyringPassphrases keyringPassphrases : collection) {
+            if(keyringPassphrases.mMasterKeyId == masterKeyId) {
+                return keyringPassphrases;
+            }
+        }
+
+        return null;
+    }
 
 }

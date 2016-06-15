@@ -31,6 +31,7 @@ import java.security.SignatureException;
 import java.security.spec.ECGenParameterSpec;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Stack;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -83,6 +84,7 @@ import org.sufficientlysecure.keychain.service.input.RequiredInputParcel.Securit
 import org.sufficientlysecure.keychain.service.input.RequiredInputParcel.SecurityTokenSignOperationsBuilder;
 import org.sufficientlysecure.keychain.ui.util.KeyFormattingUtils;
 import org.sufficientlysecure.keychain.util.IterableIterator;
+import org.sufficientlysecure.keychain.util.KeyringPassphrases;
 import org.sufficientlysecure.keychain.util.Log;
 import org.sufficientlysecure.keychain.util.Passphrase;
 import org.sufficientlysecure.keychain.util.Primes;
@@ -1285,6 +1287,99 @@ public class PgpKeyOperation {
         return false;
     }
 
+    public PgpEditKeyResult removeKeyRingPassphrase(CanonicalizedSecretKeyRing wsKR,
+                                                    KeyringPassphrases keyringPassphrases) {
+        OperationLog log = new OperationLog();
+        int indent = 0;
+
+        if (keyringPassphrases.mMasterKeyId != wsKR.getMasterKeyId()) {
+            log.add(LogType.MSG_MF_ERROR_KEYID, indent);
+            return new PgpEditKeyResult(PgpEditKeyResult.RESULT_ERROR, log, null);
+        }
+
+        log.add(LogType.MSG_MF, indent,
+                KeyFormattingUtils.convertKeyIdToHex(wsKR.getMasterKeyId()));
+        indent += 1;
+        progress(R.string.progress_building_key, 0);
+
+        // We work on bouncycastle object level here
+        PGPSecretKeyRing sKR = wsKR.getRing();
+
+        progress(R.string.progress_modify_passphrase, 50);
+        log.add(LogType.MSG_MF_PASSPHRASE, indent);
+        indent += 1;
+
+        try {
+            sKR = applyEmptyPassphrase(sKR, keyringPassphrases.mSubkeyPassphrases, log, indent);
+            if (sKR == null) {
+                // The error has been logged above, just return a bad state
+                return new PgpEditKeyResult(PgpEditKeyResult.RESULT_ERROR, log, null);
+            }
+        } catch (PGPException e) {
+            throw new UnsupportedOperationException("Failed to build encryptor/decryptor!");
+        }
+
+        indent -= 1;
+        progress(R.string.progress_done, 100);
+        log.add(LogType.MSG_MF_SUCCESS, indent);
+        return new PgpEditKeyResult(OperationResult.RESULT_OK, log, new UncachedKeyRing(sKR));
+    }
+
+    /**
+     * Aggressively change passphrase of all subkeys to an empty passphrase if possible
+     */
+    private static PGPSecretKeyRing applyEmptyPassphrase(
+            PGPSecretKeyRing sKR,
+            HashMap<Long, Passphrase> passphrases,
+            OperationLog log, int indent) throws PGPException {
+
+        boolean keysModified = false;
+        PGPDigestCalculator encryptorHashCalc = new JcaPGPDigestCalculatorProviderBuilder().build()
+                .get(PgpSecurityConstants.SECRET_KEY_ENCRYPTOR_HASH_ALGO);
+
+        for (PGPSecretKey sKey : new IterableIterator<>(sKR.getSecretKeys())) {
+            log.add(LogType.MSG_MF_PASSPHRASE_KEY, indent,
+                    KeyFormattingUtils.convertKeyIdToHex(sKey.getKeyID()));
+
+            // Get the appropriate passphrase
+            Passphrase passphrase = passphrases.get(sKey.getKeyID());
+            if(passphrase == null) {
+                log.add(LogType.MSG_MF_PASSPHRASE_MISSING, indent+1);
+                continue;
+            }
+
+            // build encryptor & decryptor
+            PBESecretKeyDecryptor keyDecryptor = new JcePBESecretKeyDecryptorBuilder().setProvider(
+                    Constants.BOUNCY_CASTLE_PROVIDER_NAME).build(passphrase.getCharArray());
+            PBESecretKeyEncryptor keyEncryptorNew = new JcePBESecretKeyEncryptorBuilder(
+                    PgpSecurityConstants.SECRET_KEY_ENCRYPTOR_SYMMETRIC_ALGO, encryptorHashCalc,
+                    PgpSecurityConstants.SECRET_KEY_ENCRYPTOR_S2K_COUNT)
+                    .setProvider(Constants.BOUNCY_CASTLE_PROVIDER_NAME).build("".toCharArray());
+
+            try {
+                sKey = PGPSecretKey.copyWithNewPassword(sKey, keyDecryptor, keyEncryptorNew);
+            } catch (PGPException e) {
+                log.add(LogType.MSG_MF_ERROR_PASSPHRASE_SUBKEY, indent+1);
+                continue;
+            }
+
+            sKR = PGPSecretKeyRing.insertSecretKey(sKR, sKey);
+            keysModified = true;
+        }
+
+        if(!keysModified) {
+            // no passphrase was changed
+            log.add(LogType.MSG_MF_ERROR_PASSPHRASES_UNCHANGED, indent+1);
+            return null;
+        }
+
+        return sKR;
+    }
+
+
+    /**
+     * Change passphrase of subkeys with given passphrase to newPassphrase.
+     */
     private static PGPSecretKeyRing applyNewPassphrase(
             PGPSecretKeyRing sKR,
             PGPPublicKey masterPublicKey,
