@@ -457,6 +457,10 @@ public class ImportKeysActivity extends BaseActivity
 
         Intent intent = new Intent(this, PassphraseDialogActivity.class);
 
+        // try empty passphrase to handle stripped keys
+        // TODO: This makes importing slower than desired, but not as slow as checking keytype. Any alternatives?
+        intent.putExtra(PassphraseDialogActivity.EXTRA_PASSPHRASE_TO_TRY, new Passphrase());
+
         // try using last entered passphrase if appropriate
         if (!mPassphrasesList.isEmpty()) {
             KeyringPassphrases prevKeyring = mPassphrasesList.get(mPassphrasesList.size() - 1);

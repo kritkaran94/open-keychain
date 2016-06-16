@@ -18,23 +18,32 @@ public class KeyringPassphrases implements Parcelable {
     }
 
     /**
-     * Returns a passphrase, with no guarantees on consistency
+     * Returns a non-empty passphrase, with no guarantees on consistency
      */
     public Passphrase getSinglePassphrase() {
         if (mSubkeyPassphrases.size() > 0) {
-            return mSubkeyPassphrases.values().iterator().next();
-        } else {
-            return null;
+            for(Passphrase passphrase : mSubkeyPassphrases.values()) {
+                if(!passphrase.isEmpty()) {
+                    return passphrase;
+                }
+            }
         }
+
+        return null;
     }
 
+    /**
+     * Disregards empty passphrases
+     */
     public boolean subKeysHaveSamePassphrase() {
         if (mSubkeyPassphrases.size() < 2) {
             return true;
         } else {
             Passphrase previous = null;
             for(Passphrase current : mSubkeyPassphrases.values()) {
-                if(previous != null && !current.equals(previous)) {
+                if(current.isEmpty()) {
+                    continue;
+                } else if (previous != null && !current.equals(previous)) {
                     return false;
                 }
                 previous = current;

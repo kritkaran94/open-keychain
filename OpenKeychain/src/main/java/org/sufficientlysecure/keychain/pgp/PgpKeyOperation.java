@@ -1373,9 +1373,8 @@ public class PgpKeyOperation {
         }
 
         if(!keysModified) {
-            // no passphrase was changed
+            // no passphrase changed, do not fail as all keys may be stripped
             log.add(LogType.MSG_MF_ERROR_PASSPHRASES_UNCHANGED, indent+1);
-            return null;
         }
 
         return sKR;
