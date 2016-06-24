@@ -595,14 +595,14 @@ public class KeyFormattingUtils {
 
             String userId = result.getSignatureResult().getPrimaryUserId();
             //OpenPgpUtils.UserId userIdSplit = KeyRing.splitUserId(userId);
-            if (KeyRings.name != null) {
-                holder.getSignatureUserName().setText(KeyRings.name);
+            if (KeyRings.Name != null) {
+                holder.getSignatureUserName().setText(KeyRings.Name);
             } else {
                 holder.getSignatureUserName().setText(R.string.user_id_no_name);
             }
-            if (KeyRings.email != null) {
+            if (KeyRings.Email != null) {
                 holder.getSignatureUserEmail().setVisibility(View.VISIBLE);
-                holder.getSignatureUserEmail().setText(KeyRings.email);
+                holder.getSignatureUserEmail().setText(KeyRings.Email);
             } else {
                 holder.getSignatureUserEmail().setVisibility(View.GONE);
             }
